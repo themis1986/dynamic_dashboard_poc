@@ -5,7 +5,7 @@ import 'gridstack/dist/gridstack.min.css'
 import Highcharts from 'highcharts'
 import { createGrid } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
-import 'ag-grid-community/styles/ag-grid.css'
+import 'ag-grid-community/styles/ag-theme-quartz.css'
 // ── Drag icon component ────────────────────────────────────────────────────────
 const DragIcon = defineComponent({
   render: () =>
