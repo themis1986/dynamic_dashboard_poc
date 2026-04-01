@@ -248,7 +248,7 @@ onMounted(async () => {
       cellHeight: 68,
       minRow: 2,
       animate: true,
-      float: true,
+      float: false, // Disable floating to enable vertical compaction
       margin: 8,
       resizable: { handles: 'se,sw' },
       draggable: { handle: '.widget-drag-handle' },
@@ -396,7 +396,7 @@ function addWidgetToColumn(columnIndex) {
 </script>
 
 <template>
-  <div class="dashboard-wrapper">
+  <div class="dashboard-wrapper" :class="{ 'has-columns': layoutColumns.length > 1 }">
     <!-- Layout guides (visual only) -->
     <div v-if="layoutColumns.length > 1" class="layout-guides">
       <div
@@ -503,6 +503,10 @@ function addWidgetToColumn(columnIndex) {
 .dashboard-wrapper {
   position: relative;
   min-height: 400px;
+}
+
+.dashboard-wrapper.has-columns {
+  padding-top: 68px;
 }
 
 .empty-state {
@@ -687,7 +691,7 @@ function addWidgetToColumn(columnIndex) {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
+  height: 68px;
   pointer-events: none;
   z-index: 100;
   display: flex;
@@ -696,7 +700,7 @@ function addWidgetToColumn(columnIndex) {
 .layout-column {
   position: absolute;
   top: 0;
-  bottom: 0;
+  height: 68px;
   border-left: 1px dashed rgba(245, 158, 11, 0.2);
   border-right: 1px dashed rgba(245, 158, 11, 0.2);
   background: rgba(245, 158, 11, 0.02);

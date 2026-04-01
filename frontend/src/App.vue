@@ -62,6 +62,7 @@ onMounted(async () => {
 
     // Load user's dashboard
     const dashboard = await api.fetchDashboard()
+    console.log(dashboard)
 
     // Restore layout
     if (dashboard?.layout) {
@@ -72,6 +73,7 @@ onMounted(async () => {
       // Restore widgets with their data
       for (const savedWidget of dashboard.widgets) {
         const data = await api.fetchData(savedWidget.domainId, savedWidget.datasetId)
+        console.log(data)
         widgets.value.push({
           ...savedWidget,
           kpiData: data.kpi,
@@ -108,6 +110,24 @@ function sizeForVizType(vizType) {
   return sizes[vizType] ?? { w: 6, h: 5 }
 }
 
+// ── Helper: Find next available Y position in a column ────────────────────────
+function findNextYInColumn(columnStart, columnWidth) {
+  // Find all widgets that overlap with this column
+  const widgetsInColumn = widgets.value.filter((w) => {
+    // Check if widget's x range overlaps with column's x range
+    const widgetEnd = w.x + w.w
+    const columnEnd = columnStart + columnWidth
+    return w.x < columnEnd && widgetEnd > columnStart
+  })
+
+  // If no widgets in column, start at y = 0
+  if (widgetsInColumn.length === 0) return 0
+
+  // Find the maximum y + h to place new widget right after
+  const maxY = Math.max(...widgetsInColumn.map((w) => w.y + w.h))
+  return maxY
+}
+
 // ── Add widget ─────────────────────────────────────────────────────────────────
 async function addWidget({ domainId, datasetId, vizType }) {
   try {
@@ -124,6 +144,9 @@ async function addWidget({ domainId, datasetId, vizType }) {
     const x = column.start
     const w = column.width
 
+    // Find the next available y position in this column
+    const y = findNextYInColumn(x, w)
+
     const newWidget = {
       id,
       domainId,
@@ -132,7 +155,7 @@ async function addWidget({ domainId, datasetId, vizType }) {
       w,
       h,
       x,
-      y: widgets.value.length * 5, // simple auto-stack
+      y,
       kpiData: data.kpi,
       _data: data,
     }
@@ -230,7 +253,7 @@ function handleAddWidgetToColumn({ x, w }) {
   <div class="app">
     <!-- ── App Header ── -->
     <header class="app-header">
-      <div class="logo">dash<span>craft</span></div>
+      <div class="logo">dashboard<span>poc</span></div>
       <div class="header-right">
         <span class="widget-count"
           >{{ widgets.length }} widget{{ widgets.length !== 1 ? 's' : '' }}</span
