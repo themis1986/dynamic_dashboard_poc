@@ -72,33 +72,67 @@ const agGridInstances = new Map()
 
 // ── Helper: Find which column a widget belongs to ─────────────────────────────
 function findColumnForWidget(x, w) {
-  // Find the column that the widget's center is in
-  const widgetCenter = x + w / 2
-  
-  for (const col of layoutColumns.value) {
-    const colStart = col.start
-    const colEnd = col.start + col.width
-    
-    if (widgetCenter >= colStart && widgetCenter < colEnd) {
-      return col
+  const columns = layoutColumns.value
+
+  // Use different detection strategies based on layout
+  // For layouts where first column is LARGER (two-left-large), use widget center
+  // For layouts where first column is SMALLER (two-left-small), use x position only
+  const useCenter = props.layout === 'two-left-large'
+
+  if (useCenter) {
+    // Strategy 1: Use widget center (works when first column is larger)
+    const widgetCenter = x + w / 2
+
+    for (const col of columns) {
+      const colStart = col.start
+      const colEnd = col.start + col.width
+
+      if (widgetCenter >= colStart && widgetCenter < colEnd) {
+        return col
+      }
     }
-  }
-  
-  // If not found, return the closest column
-  let closestCol = layoutColumns.value[0]
-  let minDistance = Math.abs(widgetCenter - (closestCol.start + closestCol.width / 2))
-  
-  for (const col of layoutColumns.value) {
-    const colCenter = col.start + col.width / 2
-    const distance = Math.abs(widgetCenter - colCenter)
-    
-    if (distance < minDistance) {
-      minDistance = distance
-      closestCol = col
+
+    // Fallback: return the closest column by center distance
+    let closestCol = columns[0]
+    let minDistance = Math.abs(widgetCenter - (closestCol.start + closestCol.width / 2))
+
+    for (const col of columns) {
+      const colCenter = col.start + col.width / 2
+      const distance = Math.abs(widgetCenter - colCenter)
+
+      if (distance < minDistance) {
+        minDistance = distance
+        closestCol = col
+      }
     }
+
+    return closestCol
+  } else {
+    // Strategy 2: Use x position only (works when first column is smaller or equal)
+    for (const col of columns) {
+      const colStart = col.start
+      const colEnd = col.start + col.width
+
+      if (x >= colStart && x < colEnd) {
+        return col
+      }
+    }
+
+    // Fallback: return the closest column based on x position
+    let closestCol = columns[0]
+    let minDistance = Math.abs(x - closestCol.start)
+
+    for (const col of columns) {
+      const distance = Math.abs(x - col.start)
+
+      if (distance < minDistance) {
+        minDistance = distance
+        closestCol = col
+      }
+    }
+
+    return closestCol
   }
-  
-  return closestCol
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -227,21 +261,21 @@ onMounted(async () => {
     const layout = items.map((i) => {
       const widgetId = i.el?.id?.replace('gs-widget-', '')
       let { x, y, w, h } = i
-      
+
       // Auto-adjust width when widget is dragged to a different column
       const targetColumn = findColumnForWidget(x, w)
       if (targetColumn) {
         // Snap to column start and set width to full column width
         x = targetColumn.start
         w = targetColumn.width
-        
+
         // Update the GridStack widget immediately to reflect the new width
-        const gsWidget = grid.engine.nodes.find(node => node.el?.id === `gs-widget-${widgetId}`)
+        const gsWidget = grid.engine.nodes.find((node) => node.el?.id === `gs-widget-${widgetId}`)
         if (gsWidget && (gsWidget.w !== w || gsWidget.x !== x)) {
           grid.update(i.el, { x, w })
         }
       }
-      
+
       return {
         id: widgetId,
         x,
