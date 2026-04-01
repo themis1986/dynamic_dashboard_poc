@@ -34,7 +34,7 @@ const props = defineProps({
   layout: { type: String, default: 'single' },
 })
 
-const emit = defineEmits(['remove-widget', 'layout-changed'])
+const emit = defineEmits(['remove-widget', 'layout-changed', 'add-widget-to-column'])
 
 // ── Layout Configuration ───────────────────────────────────────────────────────
 const layoutColumns = computed(() => {
@@ -383,19 +383,22 @@ watch(
 
 // ── Expose render helpers for parent use (optional) ───────────────────────────
 defineExpose({ renderChart, renderTable })
+
+// ── Handle adding widget to specific column ───────────────────────────────────
+function addWidgetToColumn(columnIndex) {
+  const column = layoutColumns.value[columnIndex]
+  emit('add-widget-to-column', {
+    columnIndex,
+    x: column.start,
+    w: column.width,
+  })
+}
 </script>
 
 <template>
   <div class="dashboard-wrapper">
-    <!-- Empty state -->
-    <div v-if="widgets.length === 0" class="empty-state">
-      <div class="empty-icon">🧩</div>
-      <h3 class="empty-title">No widgets yet</h3>
-      <p class="empty-desc">Click "Add Widget" to start building your personalized dashboard.</p>
-    </div>
-
     <!-- Layout guides (visual only) -->
-    <div v-if="widgets.length > 0 && layoutColumns.length > 1" class="layout-guides">
+    <div v-if="layoutColumns.length > 1" class="layout-guides">
       <div
         v-for="(col, idx) in layoutColumns"
         :key="idx"
@@ -406,7 +409,40 @@ defineExpose({ renderChart, renderTable })
         }"
       >
         <div class="column-label">Column {{ idx + 1 }}</div>
+        <button
+          class="column-add-btn"
+          @click="addWidgetToColumn(idx)"
+          :title="`Add widget to Column ${idx + 1}`"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M10 4V16M4 10H16"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
       </div>
+    </div>
+
+    <!-- Empty state -->
+    <div v-if="widgets.length === 0" class="empty-state">
+      <div class="empty-icon">🧩</div>
+      <h3 class="empty-title">No widgets yet</h3>
+      <p class="empty-desc">
+        {{
+          layoutColumns.length > 1
+            ? 'Click the + icon in any column or use "Add Widget" button'
+            : 'Click "Add Widget" to start building your personalized dashboard.'
+        }}
+      </p>
     </div>
 
     <!-- GridStack container -->
@@ -466,6 +502,7 @@ defineExpose({ renderChart, renderTable })
 <style scoped>
 .dashboard-wrapper {
   position: relative;
+  min-height: 400px;
 }
 
 .empty-state {
@@ -477,6 +514,13 @@ defineExpose({ renderChart, renderTable })
   text-align: center;
   border: 2px dashed var(--border);
   border-radius: 12px;
+  position: relative;
+  z-index: 2;
+  background: var(--bg);
+  pointer-events: none;
+}
+.empty-state > * {
+  pointer-events: auto;
 }
 .empty-icon {
   font-size: 44px;
@@ -645,7 +689,7 @@ defineExpose({ renderChart, renderTable })
   right: 0;
   bottom: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: 100;
   display: flex;
 }
 
@@ -684,8 +728,39 @@ defineExpose({ renderChart, renderTable })
   white-space: nowrap;
 }
 
+.column-add-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px dashed rgba(245, 158, 11, 0.3);
+  background: var(--surface);
+  color: rgba(245, 158, 11, 0.4);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s;
+  opacity: 0.6;
+}
+
+.column-add-btn:hover {
+  opacity: 1;
+  border-color: rgba(245, 158, 11, 0.6);
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--accent);
+  transform: scale(1.1);
+}
+
+.column-add-btn:active {
+  transform: scale(0.95);
+}
+
 .grid-stack {
   position: relative;
-  z-index: 1;
+  z-index: 20;
 }
 </style>

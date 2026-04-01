@@ -42,6 +42,7 @@ const layoutSelectorOpen = ref(false)
 const selectedLayout = ref('single') // Default layout
 const widgets = ref([])
 const loading = ref(true)
+const targetColumn = ref(null) // Store target column for widget placement
 let widgetCounter = 0
 
 // ── Initialize app data ────────────────────────────────────────────────────────
@@ -115,13 +116,13 @@ async function addWidget({ domainId, datasetId, vizType }) {
     const { h } = sizeForVizType(vizType)
     const id = ++widgetCounter
 
-    // Always place new widgets in the first column
+    // Determine target column (use targetColumn if set, otherwise default to first)
     const layoutColumns = getLayoutColumns(selectedLayout.value)
-    const firstColumn = layoutColumns[0]
-    
-    // Set x to first column start and width to full column width
-    const x = firstColumn.start
-    const w = firstColumn.width
+    const column = targetColumn.value ?? layoutColumns[0]
+
+    // Set x to column start and width to full column width
+    const x = column.start
+    const w = column.width
 
     const newWidget = {
       id,
@@ -137,6 +138,9 @@ async function addWidget({ domainId, datasetId, vizType }) {
     }
 
     widgets.value.push(newWidget)
+
+    // Clear target column after adding widget
+    targetColumn.value = null
 
     // Save to backend
     await saveDashboardToBackend()
@@ -214,6 +218,12 @@ async function handleLayoutSelect(layoutId) {
   selectedLayout.value = layoutId
   await saveDashboardToBackend()
 }
+
+// ── Handle add widget to specific column ───────────────────────────────────────
+function handleAddWidgetToColumn({ x, w }) {
+  targetColumn.value = { start: x, width: w }
+  wizardOpen.value = true
+}
 </script>
 
 <template>
@@ -269,6 +279,7 @@ async function handleLayoutSelect(layoutId) {
         :layout="selectedLayout"
         @remove-widget="removeWidget"
         @layout-changed="onLayoutChanged"
+        @add-widget-to-column="handleAddWidgetToColumn"
       />
     </main>
 

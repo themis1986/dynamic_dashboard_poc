@@ -47,7 +47,7 @@ App.vue (Root)
 │
 ├── DashboardGrid.vue
 │   ├── GridStack container
-│   ├── Layout guides (visual column indicators)
+│   ├── Layout guides (visual column indicators with "+ Add Widget" buttons)
 │   ├── Widget cards (dynamically rendered)
 │   │   ├── Highcharts visualizations (Line, Bar, Pie, Area, Column)
 │   │   ├── AG-Grid tables
@@ -100,14 +100,17 @@ App.vue (Root)
   ```
 
 - **Widget Management:**
-  - `addWidget()` - Creates new widget with fetched data
+  - `addWidget()` - Creates new widget with fetched data, uses targetColumn if set
   - `removeWidget()` - Removes widget and persists state
   - `handleLayoutChange()` - Saves layout changes to backend with 500ms debounce
+  - `handleAddWidgetToColumn()` - Sets target column and opens wizard for precise widget placement
+  - `handleLayoutSelect()` - Updates selected layout and persists to backend
   - `sizeForVizType()` - Maps visualization types to optimal grid dimensions
 
 - **Auto-save Mechanism:**
   - Debounced layout changes (500ms delay)
   - Saves complete widget configuration including position, size, and data references
+  - Persists layout selection alongside widget data
 
 **State Management:**
 
@@ -116,6 +119,9 @@ const DOMAINS = ref([]) // All available domains
 const DATASETS = ref({}) // Datasets grouped by domain
 const widgets = ref([]) // Current dashboard widgets
 const wizardOpen = ref(false) // Wizard modal state
+const layoutSelectorOpen = ref(false) // Layout selector modal state
+const selectedLayout = ref('single') // Current layout ID ('single', 'two-equal', etc.)
+const targetColumn = ref(null) // Target column for next widget placement { start, width }
 const loading = ref(true) // Loading indicator
 ```
 
@@ -129,7 +135,7 @@ const loading = ref(true) // Loading indicator
 - Renders widgets based on visualization type
 - Handles real-time drag-and-drop and resize operations
 - Implements multi-column layout system with auto-resize
-- Displays visual layout guides for column boundaries
+- Displays interactive layout guides with "+ Add Widget" buttons for precise placement
 - Integrates Highcharts and AG-Grid renderers
 
 **GridStack Implementation:**
@@ -394,12 +400,15 @@ watch(
 
 **Visual Layout Guides:**
 
-DashboardGrid displays semi-transparent column guides when using multi-column layouts:
+DashboardGrid displays interactive column guides when using multi-column layouts:
 
 - Dashed borders indicating column boundaries
 - "Column 1", "Column 2", "Column 3" labels
 - Subtle background highlighting
-- Non-interactive (pointer-events: none)
+- **Interactive "+ Add Widget" buttons** for each column
+  - Clicking a column's + button opens the widget wizard
+  - New widgets are automatically placed in the selected column
+  - Provides precise control over widget placement in multi-column layouts
 
 ---
 
@@ -446,11 +455,11 @@ const USER_ID = 'user-1' // Placeholder for authentication
    Returns: { id, userId, name, widgets[] }
    ```
 
-5. **`saveDashboard(widgets, userId)`** - Save dashboard layout
+5. **`saveDashboard(widgets, layout, userId)`** - Save dashboard widgets and layout
    ```javascript
    POST /api/dashboards/:userId
-   Body: { widgets: Array<Widget> }
-   Returns: { id, userId, name, widgets[] }
+   Body: { widgets: Array<Widget>, layout: string }
+   Returns: { id, userId, name, widgets[], layout }
    ```
 
 **Authentication:**
@@ -523,6 +532,31 @@ async function apiRequest(endpoint, options = {}) {
 6. API call to POST /dashboards/:userId
 7. Backend persists new layout
 ```
+
+### Add Widget to Specific Column Flow
+
+```
+1. User clicks "+ Add Widget" button on a specific column guide
+2. DashboardGrid.vue.addWidgetToColumn() emits 'add-widget-to-column' event with column info
+3. App.vue.handleAddWidgetToColumn() executes:
+   - Stores target column (start position and width) in targetColumn ref
+   - Opens AddWidgetWizard modal
+4. User completes wizard (selects domain, dataset, viz type)
+5. App.vue.addWidget() executes:
+   - Fetches data from API
+   - Uses targetColumn.value (if set) to position widget, otherwise defaults to first column
+   - Creates widget with x = column.start and w = column.width
+   - Clears targetColumn.value after widget placement
+   - Adds widget to widgets array
+6. DashboardGrid.vue reactively renders new widget in the specified column
+7. Layout auto-saves to backend
+```
+
+**Key Benefits:**
+
+- Provides precise control over widget placement in multi-column layouts
+- Improves user experience by eliminating manual dragging after widget creation
+- Visual feedback through column highlighting and + button placement
 
 ---
 
@@ -824,5 +858,5 @@ For questions or issues related to the frontend application, consult:
 
 ---
 
-**Last Updated:** March 2026  
+**Last Updated:** April 2026  
 **Application Version:** 0.0.0

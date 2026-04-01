@@ -157,20 +157,20 @@ This is a **full-stack custom dashboard application** that enables users to crea
 **Frontend (dashboardApi.js):**
 
 ```javascript
-const USER_ID = "user-1"; // Hardcoded for demo
+const USER_ID = 'user-1' // Hardcoded for demo
 
 async function apiRequest(endpoint, options = {}) {
   const config = {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       Authorization: USER_ID, // Sent with every request
       ...options.headers,
     },
-  };
+  }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  return response.json();
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config)
+  return response.json()
 }
 ```
 
@@ -180,17 +180,17 @@ async function apiRequest(endpoint, options = {}) {
 @Injectable()
 export class AuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers["authorization"];
+    const request = context.switchToHttp().getRequest()
+    const authHeader = request.headers['authorization']
 
     if (!authHeader) {
-      throw new UnauthorizedException("Missing Authorization header");
+      throw new UnauthorizedException('Missing Authorization header')
     }
 
-    const userId = authHeader.replace("Bearer ", "").trim();
-    request.userId = userId; // Attach to request
+    const userId = authHeader.replace('Bearer ', '').trim()
+    request.userId = userId // Attach to request
 
-    return true;
+    return true
   }
 }
 ```
@@ -272,44 +272,41 @@ export class AuthGuard implements CanActivate {
 
 ```javascript
 onMounted(async () => {
-  loading.value = true;
+  loading.value = true
 
   // Step 1: Load domains
-  DOMAINS.value = await api.fetchDomains();
+  DOMAINS.value = await api.fetchDomains()
 
   // Step 2: Load all datasets
-  const datasetsMap = {};
+  const datasetsMap = {}
   for (const domain of DOMAINS.value) {
-    datasetsMap[domain.id] = await api.fetchDatasets(domain.id);
+    datasetsMap[domain.id] = await api.fetchDatasets(domain.id)
   }
-  DATASETS.value = datasetsMap;
+  DATASETS.value = datasetsMap
 
   // Step 3: Load user's dashboard (including layout preference)
-  const dashboard = await api.fetchDashboard();
+  const dashboard = await api.fetchDashboard()
 
   // Step 3a: Restore layout setting
   if (dashboard?.layout) {
-    selectedLayout.value = dashboard.layout;
+    selectedLayout.value = dashboard.layout
   }
 
   // Step 4: Restore widgets with data
   if (dashboard?.widgets) {
     for (const savedWidget of dashboard.widgets) {
-      const data = await api.fetchData(
-        savedWidget.domainId,
-        savedWidget.datasetId,
-      );
-      widgets.value.push({ ...savedWidget, _data: data });
+      const data = await api.fetchData(savedWidget.domainId, savedWidget.datasetId)
+      widgets.value.push({ ...savedWidget, _data: data })
     }
   }
 
   // Step 5: Show layout selector for new users
   if (!dashboard?.layout && (!dashboard?.widgets || dashboard.widgets.length === 0)) {
-    layoutSelectorOpen.value = true;
+    layoutSelectorOpen.value = true
   }
 
-  loading.value = false;
-});
+  loading.value = false
+})
 ```
 
 **Backend Code (dashboards.service.ts):**
@@ -442,7 +439,7 @@ async getDashboard(userId: string) {
 ```javascript
 async function addWidget({ domainId, datasetId, vizType }) {
   // Step 1: Fetch data
-  const data = await api.fetchData(domainId, datasetId);
+  const data = await api.fetchData(domainId, datasetId)
 
   // Step 2: Create widget object
   const newWidget = {
@@ -455,10 +452,10 @@ async function addWidget({ domainId, datasetId, vizType }) {
     y: 0,
     kpiData: data.kpi,
     _data: data,
-  };
+  }
 
   // Step 3: Add to widgets (triggers reactivity)
-  widgets.value.push(newWidget);
+  widgets.value.push(newWidget)
 
   // Step 4: Auto-save handled by layout change listener
 }
@@ -466,7 +463,7 @@ async function addWidget({ domainId, datasetId, vizType }) {
 // Debounced save function
 const handleLayoutChange = debounce(async (items) => {
   const layoutData = items.map((item) => {
-    const widget = widgets.value.find((w) => w.id === parseInt(item.id));
+    const widget = widgets.value.find((w) => w.id === parseInt(item.id))
     return {
       id: widget.id,
       domainId: widget.domainId,
@@ -476,12 +473,12 @@ const handleLayoutChange = debounce(async (items) => {
       y: item.y,
       w: item.w,
       h: item.h,
-    };
-  });
+    }
+  })
 
   // Save widgets along with current layout preference
-  await api.saveDashboard(layoutData, selectedLayout.value);
-}, 500);
+  await api.saveDashboard(layoutData, selectedLayout.value)
+}, 500)
 ```
 
 **Backend Code (dashboards.service.ts):**
@@ -591,14 +588,14 @@ async saveDashboard(userId: string, widgets: any[], layout?: string) {
 // In LayoutSelector.vue
 function confirmSelection() {
   if (selectedLayout.value) {
-    emit('select-layout', selectedLayout.value)  // Emits to App.vue
+    emit('select-layout', selectedLayout.value) // Emits to App.vue
     emit('update:modelValue', false)
   }
 }
 
 // In App.vue
 async function onLayoutSelected(layout) {
-  selectedLayout.value = layout  // Updates DashboardGrid prop
+  selectedLayout.value = layout // Updates DashboardGrid prop
   layoutSelectorOpen.value = false
 
   // Auto-save happens via layout change event from DashboardGrid
@@ -654,13 +651,13 @@ watch(
 
 Based on GridStack's 12-column grid system:
 
-| Layout Type       | Column 1 | Column 2 | Column 3 |
-| ----------------- | -------- | -------- | -------- |
-| Single            | 0-12     | -        | -        |
-| Two Equal         | 0-6      | 6-12     | -        |
-| Two Left Small    | 0-4      | 4-12     | -        |
-| Two Left Large    | 0-8      | 8-12     | -        |
-| Three Equal       | 0-4      | 4-8      | 8-12     |
+| Layout Type    | Column 1 | Column 2 | Column 3 |
+| -------------- | -------- | -------- | -------- |
+| Single         | 0-12     | -        | -        |
+| Two Equal      | 0-6      | 6-12     | -        |
+| Two Left Small | 0-4      | 4-12     | -        |
+| Two Left Large | 0-8      | 8-12     | -        |
+| Three Equal    | 0-4      | 4-8      | 8-12     |
 
 ---
 
@@ -722,13 +719,13 @@ onMounted(() => {
       animate: true,
     },
     gridEl.value,
-  );
+  )
 
   // Listen for any layout changes
-  grid.on("change", (event, items) => {
-    emit("layout-changed", items);
-  });
-});
+  grid.on('change', (event, items) => {
+    emit('layout-changed', items)
+  })
+})
 ```
 
 **Debouncing Explanation:**
@@ -773,7 +770,7 @@ CacheModule.register({
   isGlobal: true,
   ttl: 300000, // 5 minutes = 300,000 ms
   max: 100, // Max 100 items in cache
-});
+})
 ```
 
 **Cache Benefits:**
@@ -787,14 +784,14 @@ CacheModule.register({
 
 ```typescript
 // Use Redis for distributed caching
-import * as redisStore from "cache-manager-redis-store";
+import * as redisStore from 'cache-manager-redis-store'
 
 CacheModule.register({
   store: redisStore,
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
   ttl: 300,
-});
+})
 ```
 
 ---
@@ -845,11 +842,11 @@ Authorization: user-1
 ```typescript
 // In main.ts
 app.enableCors({
-  origin: "http://localhost:5173", // Frontend URL
+  origin: 'http://localhost:5173', // Frontend URL
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-});
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+})
 ```
 
 **Why CORS is Needed:**
@@ -1077,21 +1074,21 @@ custom-dashboard-app/
 
 ```javascript
 // UI updates instantly via GridStack
-grid.on("change", (event, items) => {
+grid.on('change', (event, items) => {
   // Items already updated in UI
-  emit("layout-changed", items);
-});
+  emit('layout-changed', items)
+})
 
 // Background save (doesn't block UI)
 const handleLayoutChange = debounce(async (items) => {
   try {
-    await api.saveDashboard(items);
+    await api.saveDashboard(items)
     // Success: no UI change needed
   } catch (error) {
     // Error: show toast notification
-    console.error("Failed to save layout", error);
+    console.error('Failed to save layout', error)
   }
-}, 500);
+}, 500)
 ```
 
 ---
@@ -1216,26 +1213,26 @@ class Widget {
 // API layer wrapper
 async function apiRequest(endpoint, options = {}) {
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config)
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API Error (${response.status}): ${errorText}`);
+      const errorText = await response.text()
+      throw new Error(`API Error (${response.status}): ${errorText}`)
     }
 
-    return await response.json();
+    return await response.json()
   } catch (error) {
-    console.error(`API request failed: ${endpoint}`, error);
-    throw error; // Re-throw for caller to handle
+    console.error(`API request failed: ${endpoint}`, error)
+    throw error // Re-throw for caller to handle
   }
 }
 
 // Component error handling
 try {
-  const data = await api.fetchData(domainId, datasetId);
+  const data = await api.fetchData(domainId, datasetId)
   // Success path
 } catch (error) {
-  console.error("Failed to load widget data:", error);
+  console.error('Failed to load widget data:', error)
   // Show error toast/notification to user
 }
 ```
@@ -1264,10 +1261,10 @@ if (!domain) {
 async function fetchWithRetry(url, options, maxRetries = 3) {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      return await fetch(url, options);
+      return await fetch(url, options)
     } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      await sleep(Math.pow(2, i) * 1000); // 1s, 2s, 4s
+      if (i === maxRetries - 1) throw error
+      await sleep(Math.pow(2, i) * 1000) // 1s, 2s, 4s
     }
   }
 }
@@ -1328,7 +1325,7 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
      extra: {
        connectionLimit: 10,
      },
-   });
+   })
    ```
 
 ---
@@ -1374,7 +1371,7 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
 **Example Helmet.js Setup:**
 
 ```typescript
-import helmet from "helmet";
+import helmet from 'helmet'
 
 app.use(
   helmet({
@@ -1390,7 +1387,7 @@ app.use(
       includeSubDomains: true,
     },
   }),
-);
+)
 ```
 
 ---
@@ -1559,26 +1556,26 @@ this.logger.debug('Debug message')   // Debug info
 **Unit Tests (Vitest):**
 
 ```javascript
-import { describe, it, expect } from "vitest";
-import { sizeForVizType } from "./utils";
+import { describe, it, expect } from 'vitest'
+import { sizeForVizType } from './utils'
 
-describe("sizeForVizType", () => {
-  it("returns correct size for KPI", () => {
-    expect(sizeForVizType("kpi")).toEqual({ w: 3, h: 4 });
-  });
-});
+describe('sizeForVizType', () => {
+  it('returns correct size for KPI', () => {
+    expect(sizeForVizType('kpi')).toEqual({ w: 3, h: 4 })
+  })
+})
 ```
 
 **Component Tests (Vue Test Utils):**
 
 ```javascript
-import { mount } from "@vue/test-utils";
-import AddWidgetWizard from "./AddWidgetWizard.vue";
+import { mount } from '@vue/test-utils'
+import AddWidgetWizard from './AddWidgetWizard.vue'
 
-it("disables next button when no domain selected", () => {
-  const wrapper = mount(AddWidgetWizard);
-  expect(wrapper.find(".btn-primary").attributes("disabled")).toBeTruthy();
-});
+it('disables next button when no domain selected', () => {
+  const wrapper = mount(AddWidgetWizard)
+  expect(wrapper.find('.btn-primary').attributes('disabled')).toBeTruthy()
+})
 ```
 
 ### Backend Testing (Future)
@@ -1586,26 +1583,26 @@ it("disables next button when no domain selected", () => {
 **Unit Tests (Jest):**
 
 ```typescript
-describe("DashboardsService", () => {
-  it("creates dashboard for new user", async () => {
-    const dashboard = await service.getDashboard("new-user");
-    expect(dashboard.userId).toBe("new-user");
-    expect(dashboard.widgets).toEqual([]);
-  });
-});
+describe('DashboardsService', () => {
+  it('creates dashboard for new user', async () => {
+    const dashboard = await service.getDashboard('new-user')
+    expect(dashboard.userId).toBe('new-user')
+    expect(dashboard.widgets).toEqual([])
+  })
+})
 ```
 
 **E2E Tests (Supertest):**
 
 ```typescript
-it("/api/domains (GET)", () => {
+it('/api/domains (GET)', () => {
   return request(app.getHttpServer())
-    .get("/api/domains")
+    .get('/api/domains')
     .expect(200)
     .expect((res) => {
-      expect(res.body).toBeInstanceOf(Array);
-    });
-});
+      expect(res.body).toBeInstanceOf(Array)
+    })
+})
 ```
 
 ---
