@@ -109,8 +109,8 @@ The root module that bootstraps the entire application.
   imports: [
     // SQLite Database Configuration
     TypeOrmModule.forRoot({
-      type: "sqlite",
-      database: "dashboard.sqlite",
+      type: 'sqlite',
+      database: 'dashboard.sqlite',
       entities: [Domain, Dataset, Dashboard, Widget],
       synchronize: true, // Auto-create tables (disable in production)
       logging: false,
@@ -172,25 +172,25 @@ export class DomainsController {
 **Domain Entity:**
 
 ```typescript
-@Entity("domains")
+@Entity('domains')
 export class Domain {
   @PrimaryGeneratedColumn()
-  id: number;
+  id: number
 
   @Column({ unique: true })
-  key: string; // e.g., 'sales', 'finance'
+  key: string // e.g., 'sales', 'finance'
 
   @Column()
-  name: string;
+  name: string
 
   @Column()
-  icon: string;
+  icon: string
 
   @Column()
-  description: string;
+  description: string
 
   @OneToMany(() => Dataset, (dataset) => dataset.domain)
-  datasets: Dataset[];
+  datasets: Dataset[]
 }
 ```
 
@@ -219,28 +219,28 @@ export class DatasetsController {
 **Dataset Entity:**
 
 ```typescript
-@Entity("datasets")
+@Entity('datasets')
 export class Dataset {
   @PrimaryGeneratedColumn()
-  id: number;
+  id: number
 
   @Column()
-  domainId: number;
+  domainId: number
 
   @Column()
-  key: string; // e.g., 'monthly_rev', 'pipeline'
+  key: string // e.g., 'monthly_rev', 'pipeline'
 
   @Column()
-  name: string;
+  name: string
 
   @Column()
-  description: string;
+  description: string
 
-  @Column("simple-array")
-  tags: string[];
+  @Column('simple-array')
+  tags: string[]
 
   @ManyToOne(() => Domain, (domain) => domain.datasets)
-  domain: Domain;
+  domain: Domain
 }
 ```
 
@@ -397,8 +397,10 @@ export class DashboardsController {
    - Fetches dashboard with all widgets
    - Creates empty dashboard if none exists
    - Converts internal IDs to domain/dataset keys for frontend
+   - Returns layout preference (defaults to 'single' if not set)
 
 2. **Save Dashboard:**
+   - Updates layout preference if provided
    - Deletes all existing widgets
    - Converts domain/dataset keys to internal IDs
    - Inserts new widget configurations
@@ -407,71 +409,74 @@ export class DashboardsController {
 **Dashboard Entity:**
 
 ```typescript
-@Entity("dashboards")
+@Entity('dashboards')
 export class Dashboard {
   @PrimaryGeneratedColumn()
-  id: number;
+  id: number
 
   @Column()
-  userId: string;
+  userId: string
 
-  @Column({ default: "My Dashboard" })
-  name: string;
+  @Column({ default: 'My Dashboard' })
+  name: string
 
-  @Column({ type: "datetime", default: () => "CURRENT_TIMESTAMP" })
-  createdAt: Date;
+  @Column({ nullable: true, default: 'single' })
+  layout: string // Layout type: 'single', 'two-equal', 'two-left-small', 'two-left-large', 'three-equal'
 
-  @Column({ type: "datetime", default: () => "CURRENT_TIMESTAMP" })
-  updatedAt: Date;
+  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date
+
+  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  updatedAt: Date
 
   @OneToMany(() => Widget, (widget) => widget.dashboard, { cascade: true })
-  widgets: Widget[];
+  widgets: Widget[]
 }
 ```
 
 **Widget Entity:**
 
 ```typescript
-@Entity("widgets")
+@Entity('widgets')
 export class Widget {
   @PrimaryGeneratedColumn()
-  id: number;
+  id: number
 
   @Column()
-  dashboardId: number;
+  dashboardId: number
 
   @Column()
-  domainId: number;
+  domainId: number
 
   @Column()
-  datasetId: number;
+  datasetId: number
 
   @Column()
-  vizType: string; // 'line', 'bar', 'pie', 'table', 'kpi'
+  vizType: string // 'line', 'bar', 'pie', 'table', 'kpi'
 
-  @Column({ type: "integer" })
-  x: number; // Grid X position
+  @Column({ type: 'integer' })
+  x: number // Grid X position
 
-  @Column({ type: "integer" })
-  y: number; // Grid Y position
+  @Column({ type: 'integer' })
+  y: number // Grid Y position
 
-  @Column({ type: "integer" })
-  w: number; // Grid width
+  @Column({ type: 'integer' })
+  w: number // Grid width
 
-  @Column({ type: "integer" })
-  h: number; // Grid height
+  @Column({ type: 'integer' })
+  h: number // Grid height
 
   @ManyToOne(() => Dashboard, (dashboard) => dashboard.widgets, {
-    onDelete: "CASCADE",
+    onDelete: 'CASCADE',
   })
-  dashboard: Dashboard;
+  dashboard: Dashboard
 }
 ```
 
 **Widget Storage Logic:**
 
 ```typescript
-async saveDashboard(userId: string, widgets: any[]) {
+async saveDashboard(userId: string, widgets: any[], layout?: string) {
   let dashboard = await this.dashboardsRepository.findOne({
     where: { userId },
     relations: ['widgets']
@@ -480,9 +485,16 @@ async saveDashboard(userId: string, widgets: any[]) {
   if (!dashboard) {
     dashboard = this.dashboardsRepository.create({
       userId,
-      name: 'My Dashboard'
+      name: 'My Dashboard',
+      layout: layout || 'single'
     })
     await this.dashboardsRepository.save(dashboard)
+  } else {
+    // Update layout if provided
+    if (layout) {
+      dashboard.layout = layout
+      await this.dashboardsRepository.save(dashboard)
+    }
   }
 
   // Delete all existing widgets
@@ -533,22 +545,22 @@ Simple authentication guard that validates the `Authorization` header.
 @Injectable()
 export class AuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers["authorization"];
+    const request = context.switchToHttp().getRequest()
+    const authHeader = request.headers['authorization']
 
     if (!authHeader) {
-      throw new UnauthorizedException("Missing Authorization header");
+      throw new UnauthorizedException('Missing Authorization header')
     }
 
-    const userId = authHeader.replace("Bearer ", "").trim();
+    const userId = authHeader.replace('Bearer ', '').trim()
 
     if (!userId) {
-      throw new UnauthorizedException("Invalid Authorization header");
+      throw new UnauthorizedException('Invalid Authorization header')
     }
 
     // Attach userId to request
-    request.userId = userId;
-    return true;
+    request.userId = userId
+    return true
   }
 }
 ```
@@ -556,7 +568,7 @@ export class AuthGuard implements CanActivate {
 **Usage:**
 
 ```typescript
-@Controller("dashboards")
+@Controller('dashboards')
 @UseGuards(AuthGuard)
 export class DashboardsController {
   // All routes in this controller require authentication
@@ -570,12 +582,10 @@ export class DashboardsController {
 Custom parameter decorator to extract user ID from the request.
 
 ```typescript
-export const UserId = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext): string => {
-    const request = ctx.switchToHttp().getRequest();
-    return request.userId;
-  },
-);
+export const UserId = createParamDecorator((data: unknown, ctx: ExecutionContext): string => {
+  const request = ctx.switchToHttp().getRequest()
+  return request.userId
+})
 ```
 
 **Usage:**
@@ -696,6 +706,7 @@ http://localhost:3000/api
     "id": 1,
     "userId": "user-1",
     "name": "My Dashboard",
+    "layout": "two-equal",
     "widgets": [
       {
         "id": 1,
@@ -724,7 +735,6 @@ http://localhost:3000/api
   {
     "widgets": [
       {
-        "id": 1,
         "domainId": "sales",
         "datasetId": "monthly_rev",
         "vizType": "line",
@@ -733,7 +743,8 @@ http://localhost:3000/api
         "w": 6,
         "h": 5
       }
-    ]
+    ],
+    "layout": "two-equal"
   }
   ```
 - Response: Same as GET response
@@ -753,33 +764,34 @@ export class SaveDashboardDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => WidgetDto)
-  widgets: WidgetDto[];
+  widgets: WidgetDto[]
+
+  @IsOptional()
+  @IsString()
+  layout?: string // Layout type: 'single', 'two-equal', 'two-left-small', 'two-left-large', 'three-equal'
 }
 
 class WidgetDto {
-  @IsNumber()
-  id: number;
+  @IsString()
+  domainId: string
 
   @IsString()
-  domainId: string;
+  datasetId: string
 
   @IsString()
-  datasetId: string;
-
-  @IsString()
-  vizType: string;
+  vizType: string
 
   @IsNumber()
-  x: number;
+  x: number
 
   @IsNumber()
-  y: number;
+  y: number
 
   @IsNumber()
-  w: number;
+  w: number
 
   @IsNumber()
-  h: number;
+  h: number
 }
 ```
 
@@ -792,7 +804,7 @@ app.useGlobalPipes(
     whitelist: true, // Strip non-whitelisted properties
     transform: true, // Transform payloads to DTO instances
   }),
-);
+)
 ```
 
 ---
@@ -886,20 +898,20 @@ SELECT * FROM widgets;
 
 ```typescript
 app.enableCors({
-  origin: "http://localhost:5173", // Vite frontend URL
+  origin: 'http://localhost:5173', // Vite frontend URL
   credentials: true,
-});
+})
 ```
 
 **Production Configuration:**
 
 ```typescript
 app.enableCors({
-  origin: ["https://dashboard.yourdomain.com", process.env.FRONTEND_URL],
+  origin: ['https://dashboard.yourdomain.com', process.env.FRONTEND_URL],
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-});
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+})
 ```
 
 ---
@@ -984,7 +996,7 @@ NestJS provides built-in exception handling with standardized error responses.
 
 ```typescript
 if (!domain) {
-  throw new NotFoundException(`Domain '${domainKey}' not found`);
+  throw new NotFoundException(`Domain '${domainKey}' not found`)
 }
 ```
 
@@ -1123,7 +1135,7 @@ JWT_EXPIRATION=3600
 
 ```typescript
 TypeOrmModule.forRoot({
-  type: process.env.DB_TYPE as "postgres",
+  type: process.env.DB_TYPE as 'postgres',
   host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT),
   username: process.env.DB_USERNAME,
@@ -1132,7 +1144,7 @@ TypeOrmModule.forRoot({
   entities: [Domain, Dataset, Dashboard, Widget],
   synchronize: false, // IMPORTANT: Disable in production
   logging: true,
-});
+})
 ```
 
 2. Generate migrations:
@@ -1153,27 +1165,27 @@ CacheModule.register({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
   ttl: 300,
-});
+})
 ```
 
 2. **Enable Compression:**
 
 ```typescript
-import * as compression from "compression";
-app.use(compression());
+import * as compression from 'compression'
+app.use(compression())
 ```
 
 3. **Add Rate Limiting:**
 
 ```typescript
-import * as rateLimit from "express-rate-limit";
+import * as rateLimit from 'express-rate-limit'
 
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // Limit per IP
   }),
-);
+)
 ```
 
 4. **Database Connection Pooling:**
@@ -1184,7 +1196,7 @@ TypeOrmModule.forRoot({
   extra: {
     connectionLimit: 10,
   },
-});
+})
 ```
 
 ---
@@ -1245,14 +1257,14 @@ npm run test
 **Example Test:**
 
 ```typescript
-describe("DashboardsService", () => {
-  it("should create a dashboard for new user", async () => {
-    const dashboard = await service.getDashboard("user-new");
-    expect(dashboard).toBeDefined();
-    expect(dashboard.userId).toBe("user-new");
-    expect(dashboard.widgets).toEqual([]);
-  });
-});
+describe('DashboardsService', () => {
+  it('should create a dashboard for new user', async () => {
+    const dashboard = await service.getDashboard('user-new')
+    expect(dashboard).toBeDefined()
+    expect(dashboard.userId).toBe('user-new')
+    expect(dashboard.widgets).toEqual([])
+  })
+})
 ```
 
 ### E2E Tests
@@ -1264,15 +1276,15 @@ npm run test:e2e
 **Example E2E Test:**
 
 ```typescript
-it("/api/domains (GET)", () => {
+it('/api/domains (GET)', () => {
   return request(app.getHttpServer())
-    .get("/api/domains")
+    .get('/api/domains')
     .expect(200)
     .expect((res) => {
-      expect(res.body).toBeInstanceOf(Array);
-      expect(res.body.length).toBeGreaterThan(0);
-    });
-});
+      expect(res.body).toBeInstanceOf(Array)
+      expect(res.body.length).toBeGreaterThan(0)
+    })
+})
 ```
 
 ---
@@ -1373,17 +1385,17 @@ npm install @nestjs/swagger swagger-ui-express
 
 ```typescript
 // In main.ts
-import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 
 const config = new DocumentBuilder()
-  .setTitle("Dashboard API")
-  .setDescription("Custom Dashboard Backend API")
-  .setVersion("1.0")
+  .setTitle('Dashboard API')
+  .setDescription('Custom Dashboard Backend API')
+  .setVersion('1.0')
   .addBearerAuth()
-  .build();
+  .build()
 
-const document = SwaggerModule.createDocument(app, config);
-SwaggerModule.setup("api/docs", app, document);
+const document = SwaggerModule.createDocument(app, config)
+SwaggerModule.setup('api/docs', app, document)
 ```
 
 Access at: `http://localhost:3000/api/docs`

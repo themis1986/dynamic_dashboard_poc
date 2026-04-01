@@ -47,16 +47,20 @@ App.vue (Root)
 │
 ├── DashboardGrid.vue
 │   ├── GridStack container
+│   ├── Layout guides (visual column indicators)
 │   ├── Widget cards (dynamically rendered)
 │   │   ├── Highcharts visualizations (Line, Bar, Pie, Area, Column)
 │   │   ├── AG-Grid tables
 │   │   └── KPI cards
 │   └── Widget controls (remove, drag handle)
 │
-└── AddWidgetWizard.vue
-    ├── Step 1: Domain selection
-    ├── Step 2: Dataset selection
-    └── Step 3: Visualization type selection
+├── AddWidgetWizard.vue
+│   ├── Step 1: Domain selection
+│   ├── Step 2: Dataset selection
+│   └── Step 3: Visualization type selection
+│
+└── LayoutSelector.vue
+    └── Multi-column layout selection interface
 ```
 
 ### Core Components
@@ -124,6 +128,8 @@ const loading = ref(true) // Loading indicator
 - Manages GridStack layout engine
 - Renders widgets based on visualization type
 - Handles real-time drag-and-drop and resize operations
+- Implements multi-column layout system with auto-resize
+- Displays visual layout guides for column boundaries
 - Integrates Highcharts and AG-Grid renderers
 
 **GridStack Implementation:**
@@ -132,21 +138,73 @@ const loading = ref(true) // Loading indicator
 onMounted(() => {
   grid = GridStack.init(
     {
-      cellHeight: 60, // Grid cell height in pixels
-      margin: 12, // Gap between widgets
-      minRow: 1, // Minimum rows
+      cellHeight: 68, // Grid cell height in pixels
+      margin: 8, // Gap between widgets
+      minRow: 2, // Minimum rows
       animate: true, // Smooth animations
-      disableOneColumnMode: true, // Always maintain grid layout
+      float: true, // Allow floating widgets
+      resizable: { handles: 'se,sw' }, // Southeast and southwest resize handles
+      draggable: { handle: '.widget-drag-handle' }, // Drag only from handle
     },
     gridEl.value,
   )
 
-  // Listen to layout changes
-  grid.on('change', (event, items) => {
-    emit('layout-changed', items)
+  // Listen to layout changes (drag/resize events)
+  grid.on('change', (_, items) => {
+    const layout = items.map((i) => {
+      let { x, y, w, h } = i
+
+      // Auto-snap widgets to column boundaries when dragged
+      const targetColumn = findColumnForWidget(x, w)
+      if (targetColumn) {
+        x = targetColumn.start
+        w = targetColumn.width
+        // Immediately update GridStack to reflect new width
+        grid.update(i.el, { x, w })
+      }
+
+      return { id, x, y, w, h }
+    })
+    emit('layout-changed', layout)
   })
 })
 ```
+
+**Multi-Column Layout System:**
+
+The component supports dynamic multi-column layouts that automatically resize widgets:
+
+- **Column Detection:** Uses `findColumnForWidget()` to determine which column a widget belongs to
+- **Auto-Snap on Drag:** When dragging, widgets automatically snap to column boundaries and expand to full column width
+- **Auto-Resize on Layout Change:** When user selects a new layout, all widgets automatically resize to fit new column structure
+- **Layout Change Watcher:**
+
+```javascript
+watch(
+  () => props.layout,
+  async () => {
+    // Automatically resize all widgets to match new layout columns
+    props.widgets.forEach((widget) => {
+      const targetColumn = findColumnForWidget(widget.x, widget.w)
+      if (targetColumn && (targetColumn.start !== widget.x || targetColumn.width !== widget.w)) {
+        grid.update(element, { x: targetColumn.start, w: targetColumn.width })
+      }
+    })
+
+    // Re-render charts/tables after 150ms to adapt to new dimensions
+    setTimeout(() => renderAllVisualizations(), 150)
+  },
+)
+```
+
+**Column Detection Strategy:**
+
+Different detection strategies are used based on layout type:
+
+- **For layouts with larger first column** (e.g., two-left-large): Uses widget center position
+- **For layouts with smaller/equal first column**: Uses widget's x position only
+
+This ensures widgets correctly snap to columns when dragged between different layout zones.
 
 **Widget Lifecycle Management:**
 
@@ -239,6 +297,109 @@ const canProceed = computed(() => {
   return false
 })
 ```
+
+---
+
+#### 4. **LayoutSelector.vue** - Multi-Column Layout Configuration
+
+**Responsibilities:**
+
+- Provides interface for selecting dashboard layout structure
+- Supports 5 different column configurations
+- Shows visual preview of each layout option
+- Persists layout selection with dashboard configuration
+
+**Available Layouts:**
+
+1. **Single Column** - Full-width layout (12 columns)
+2. **Two Columns Equal** - 50/50 split (6 + 6 columns)
+3. **Two Columns (1/3 - 2/3)** - Small left, large right (4 + 8 columns)
+4. **Two Columns (2/3 - 1/3)** - Large left, small right (8 + 4 columns)
+5. **Three Columns Equal** - Equal thirds (4 + 4 + 4 columns)
+
+**Layout Selection Flow:**
+
+```
+1. User clicks "Change Layout" button
+2. LayoutSelector modal opens
+3. User selects desired layout from visual grid
+4. User clicks "Apply Layout"
+5. App.vue updates selectedLayout state
+6. DashboardGrid automatically resizes widgets to fit new columns
+7. Layout preference saved to backend
+```
+
+**Key Features:**
+
+- **Visual Previews:** Each layout shows column width distribution
+- **Current Selection Indicator:** Highlights currently active layout
+- **First-Time Prompt:** Automatically opens for new users with no widgets
+- **Non-Destructive:** Widgets maintain their relative column positions
+
+**Auto-Resize Behavior:**
+
+When layout changes, `DashboardGrid.vue` automatically:
+
+1. Determines which column each widget belongs to based on its position
+2. Adjusts widget width to match the new column width
+3. Snaps widget to column boundaries
+4. Re-renders charts and tables to fit new dimensions
+5. Emits layout change event for persistence
+
+**Implementation Details:**
+
+```javascript
+// Layout columns defined using GridStack's 12-column grid system
+const layoutColumns = computed(() => {
+  const layouts = {
+    single: [{ start: 0, width: 12 }],
+    'two-equal': [
+      { start: 0, width: 6 },
+      { start: 6, width: 6 },
+    ],
+    'two-left-small': [
+      { start: 0, width: 4 },
+      { start: 4, width: 8 },
+    ],
+    'two-left-large': [
+      { start: 0, width: 8 },
+      { start: 8, width: 4 },
+    ],
+    'three-equal': [
+      { start: 0, width: 4 },
+      { start: 4, width: 4 },
+      { start: 8, width: 4 },
+    ],
+  }
+  return layouts[props.layout] || layouts.single
+})
+
+// Auto-resize watcher
+watch(
+  () => props.layout,
+  async () => {
+    // For each widget, find its target column and resize
+    props.widgets.forEach((widget) => {
+      const targetColumn = findColumnForWidget(widget.x, widget.w)
+      if (targetColumn) {
+        grid.update(element, {
+          x: targetColumn.start,
+          w: targetColumn.width,
+        })
+      }
+    })
+  },
+)
+```
+
+**Visual Layout Guides:**
+
+DashboardGrid displays semi-transparent column guides when using multi-column layouts:
+
+- Dashed borders indicating column boundaries
+- "Column 1", "Column 2", "Column 3" labels
+- Subtle background highlighting
+- Non-interactive (pointer-events: none)
 
 ---
 

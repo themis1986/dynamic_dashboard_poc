@@ -4,6 +4,41 @@
 
 This is a **full-stack custom dashboard application** that enables users to create, customize, and persist interactive data visualizations. The application combines a **Vue 3 frontend** with a **NestJS backend** to deliver a seamless, modern dashboard experience with drag-and-drop widgets, real-time data visualization, and automatic state persistence.
 
+## Key Features
+
+### 🎯 Multi-Column Layout System
+
+- **5 Layout Options:** Single column, two-column (equal/unequal splits), three-column equal
+- **Visual Layout Selector:** Modal interface with preview of each layout structure
+- **Auto-Resize on Layout Change:** Widgets automatically snap to new column widths
+- **Layout Persistence:** User's layout preference saved with dashboard configuration
+- **Visual Guides:** Semi-transparent column indicators for easy widget placement
+- **First-Time Prompt:** New users automatically see layout selector on first visit
+
+### 🔄 Drag-and-Drop Widget Management
+
+- **GridStack Integration:** Professional grid layout engine with smooth animations
+- **Drag Handle:** Widgets draggable only from designated handle area
+- **Resize Handles:** Southeast and southwest corners for intuitive resizing
+- **Auto-Snap to Columns:** Widgets automatically expand to fill column width when dragged
+- **Real-Time Persistence:** Layout changes auto-save with 500ms debounce
+- **Column Detection:** Intelligent algorithm determines widget column placement
+
+### 📊 Rich Visualizations
+
+- **7 Visualization Types:** Line, Bar, Column, Area, Pie charts, Tables, KPI cards
+- **Highcharts Integration:** Professional charting with dark theme
+- **AG-Grid Tables:** Enterprise-grade data grids with sorting and filtering
+- **Responsive Rendering:** Charts and tables adapt to widget dimensions
+- **Auto Re-render:** Visualizations automatically redraw on resize or layout change
+
+### 🔐 State Management
+
+- **Optimistic UI Updates:** Immediate visual feedback without waiting for server
+- **Debounced Persistence:** Layout changes batched to reduce API calls
+- **Automatic Restoration:** Dashboard state fully restored on page reload
+- **Session Continuity:** All widget positions, sizes, and layout preferences preserved
+
 ---
 
 ## Architecture Overview
@@ -21,7 +56,12 @@ This is a **full-stack custom dashboard application** that enables users to crea
 │  │  (Manager)  │  │   (Layout)   │  │   (Creator)   │      │
 │  └──────┬──────┘  └──────┬───────┘  └──────┬───────┘      │
 │         │                │                  │               │
-│         └────────────────┴──────────────────┘               │
+│         │          ┌─────▼──────┐           │               │
+│         │          │LayoutSelector         │               │
+│         │          │  (Config)  │           │               │
+│         │          └────────────┘           │               │
+│         │                                   │               │
+│         └───────────────────────────────────┘               │
 │                          │                                  │
 │                    ┌─────▼──────┐                          │
 │                    │  API Layer │                           │
@@ -200,7 +240,7 @@ export class AuthGuard implements CanActivate {
      │                                     │                          │
      │ 9. GET /api/dashboards/user-1       │                          │
      │────────────────────────────────────▶│                          │
-     │                                     │ 10. Query dashboard + widgets
+     │                                     │ 10. Query dashboard + widgets + layout
      │                                     │─────────────────────────▶│
      │                                     │                          │
      │                                     │ 11. Return config        │
@@ -209,7 +249,7 @@ export class AuthGuard implements CanActivate {
      │                                     │ 12. Convert DB IDs to keys
      │                                     │     (domain.id → domain.key)
      │                                     │                          │
-     │ 13. Dashboard with widgets          │                          │
+     │ 13. Dashboard with widgets + layout │                          │
      │◀────────────────────────────────────│                          │
      │                                     │                          │
      │ 14. For each saved widget:          │                          │
@@ -244,8 +284,13 @@ onMounted(async () => {
   }
   DATASETS.value = datasetsMap;
 
-  // Step 3: Load user's dashboard
+  // Step 3: Load user's dashboard (including layout preference)
   const dashboard = await api.fetchDashboard();
+
+  // Step 3a: Restore layout setting
+  if (dashboard?.layout) {
+    selectedLayout.value = dashboard.layout;
+  }
 
   // Step 4: Restore widgets with data
   if (dashboard?.widgets) {
@@ -256,6 +301,11 @@ onMounted(async () => {
       );
       widgets.value.push({ ...savedWidget, _data: data });
     }
+  }
+
+  // Step 5: Show layout selector for new users
+  if (!dashboard?.layout && (!dashboard?.widgets || dashboard.widgets.length === 0)) {
+    layoutSelectorOpen.value = true;
   }
 
   loading.value = false;
@@ -429,18 +479,25 @@ const handleLayoutChange = debounce(async (items) => {
     };
   });
 
-  await api.saveDashboard(layoutData);
+  // Save widgets along with current layout preference
+  await api.saveDashboard(layoutData, selectedLayout.value);
 }, 500);
 ```
 
 **Backend Code (dashboards.service.ts):**
 
 ```typescript
-async saveDashboard(userId: string, widgets: any[]) {
+async saveDashboard(userId: string, widgets: any[], layout?: string) {
   let dashboard = await this.dashboardsRepository.findOne({
     where: { userId },
     relations: ['widgets']
   })
+
+  // Update layout preference if provided
+  if (layout && dashboard.layout !== layout) {
+    dashboard.layout = layout
+    await this.dashboardsRepository.save(dashboard)
+  }
 
   // Delete all existing widgets
   await this.widgetsRepository
@@ -480,7 +537,134 @@ async saveDashboard(userId: string, widgets: any[]) {
 
 ---
 
-### 4. Data Flow: Layout Changes (Drag/Resize)
+### 4. Data Flow: Multi-Column Layout Changes
+
+**Layout Selection and Widget Auto-Resize:**
+
+```
+┌─────────┐                           ┌─────────┐                ┌──────────┐
+│Frontend │                           │Backend  │                │Database  │
+└────┬────┘                           └────┬────┘                └────┬─────┘
+     │                                     │                          │
+     │ User clicks "Change Layout"         │                          │
+     │ LayoutSelector modal opens          │                          │
+     │                                     │                          │
+     │ 1. User selects new layout          │                          │
+     │    (e.g., "Two Columns Equal")      │                          │
+     │                                     │                          │
+     │ 2. App.vue updates selectedLayout   │                          │
+     │    DashboardGrid receives new prop  │                          │
+     │                                     │                          │
+     │ 3. Layout watcher triggers          │                          │
+     │    Auto-resize all widgets:         │                          │
+     │    - Find column for each widget    │                          │
+     │    - Snap to column boundaries      │                          │
+     │    - Adjust width to column width   │                          │
+     │                                     │                          │
+     │ 4. GridStack 'change' events fire   │                          │
+     │    (one per widget resized)         │                          │
+     │                                     │                          │
+     │ 5. Charts/tables re-render          │                          │
+     │    (after 150ms delay)              │                          │
+     │                                     │                          │
+     │ 6. Layout change debounced (500ms)  │                          │
+     │                                     │                          │
+     │ 7. POST /api/dashboards/user-1      │                          │
+     │    Body: { widgets: [...],          │                          │
+     │            layout: "two-equal" }    │                          │
+     │────────────────────────────────────▶│                          │
+     │                                     │ 8. Update dashboard.layout
+     │                                     │─────────────────────────▶│
+     │                                     │                          │
+     │                                     │ 9. Update all widgets    │
+     │                                     │    with new x, w values  │
+     │                                     │─────────────────────────▶│
+     │                                     │                          │
+     │ 10. Success response                │                          │
+     │◀────────────────────────────────────│                          │
+     │                                     │                          │
+```
+
+**Frontend Layout Change Handler:**
+
+```javascript
+// In LayoutSelector.vue
+function confirmSelection() {
+  if (selectedLayout.value) {
+    emit('select-layout', selectedLayout.value)  // Emits to App.vue
+    emit('update:modelValue', false)
+  }
+}
+
+// In App.vue
+async function onLayoutSelected(layout) {
+  selectedLayout.value = layout  // Updates DashboardGrid prop
+  layoutSelectorOpen.value = false
+
+  // Auto-save happens via layout change event from DashboardGrid
+  // No manual save needed - debounced handler takes care of it
+}
+```
+
+**DashboardGrid Auto-Resize Implementation:**
+
+```javascript
+// Watch for layout prop changes
+watch(
+  () => props.layout,
+  async () => {
+    if (!grid || props.widgets.length === 0) return
+
+    await nextTick()
+
+    // Iterate through all widgets and adjust dimensions
+    props.widgets.forEach((widget) => {
+      const el = document.getElementById(`gs-widget-${widget.id}`)
+      if (!el) return
+
+      const { x, w } = widget
+      const targetColumn = findColumnForWidget(x, w)
+
+      if (targetColumn) {
+        const newX = targetColumn.start
+        const newW = targetColumn.width
+
+        // Update only if dimensions changed
+        if (newX !== x || newW !== w) {
+          grid.update(el, { x: newX, w: newW })
+        }
+      }
+    })
+
+    // Re-render visualizations after layout stabilizes
+    setTimeout(() => {
+      props.widgets.forEach((widget) => {
+        if (widget.vizType === 'table') {
+          renderTable(widget.id, widget._data?.rows ?? [])
+        } else if (widget.vizType !== 'kpi') {
+          renderChart(widget.id, widget.vizType, widget._data)
+        }
+      })
+    }, 150)
+  },
+)
+```
+
+**Layout Column Definitions:**
+
+Based on GridStack's 12-column grid system:
+
+| Layout Type       | Column 1 | Column 2 | Column 3 |
+| ----------------- | -------- | -------- | -------- |
+| Single            | 0-12     | -        | -        |
+| Two Equal         | 0-6      | 6-12     | -        |
+| Two Left Small    | 0-4      | 4-12     | -        |
+| Two Left Large    | 0-8      | 8-12     | -        |
+| Three Equal       | 0-4      | 4-8      | 8-12     |
+
+---
+
+### 5. Data Flow: Layout Changes (Drag/Resize)
 
 **Real-Time Layout Persistence:**
 
@@ -956,6 +1140,31 @@ class Dataset {
   name: 'Monthly Revenue',
   description: '12-month revenue vs. target',
   tags: ['Revenue', 'KPI']
+}
+```
+
+### Dashboard Model
+
+```typescript
+// Backend Entity
+@Entity('dashboards')
+class Dashboard {
+  id: number              // Primary key
+  userId: string          // User identifier
+  name: string            // 'My Dashboard'
+  layout: string          // 'single', 'two-equal', 'two-left-small', etc.
+  widgets: Widget[]       // One-to-many relation
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Frontend API Response
+{
+  id: 1,
+  userId: 'user-1',
+  name: 'My Dashboard',
+  layout: 'two-equal',    // Current layout preference
+  widgets: [...]          // Array of Widget objects
 }
 ```
 
