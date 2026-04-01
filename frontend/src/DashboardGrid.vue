@@ -338,6 +338,49 @@ watch(
   },
 )
 
+// ── Watch for layout changes and auto-resize widgets ──────────────────────────
+watch(
+  () => props.layout,
+  async () => {
+    if (!grid || props.widgets.length === 0) return
+
+    await nextTick()
+
+    // Iterate through all widgets and adjust their width/position to match new layout
+    props.widgets.forEach((widget) => {
+      const el = document.getElementById(`gs-widget-${widget.id}`)
+      if (!el) return
+
+      const { x, w } = widget
+      const targetColumn = findColumnForWidget(x, w)
+
+      if (targetColumn) {
+        // Update widget to match new column dimensions
+        const newX = targetColumn.start
+        const newW = targetColumn.width
+
+        // Only update if dimensions have changed
+        if (newX !== x || newW !== w) {
+          grid.update(el, { x: newX, w: newW })
+        }
+      }
+    })
+
+    // Re-render charts and tables after layout adjustment
+    setTimeout(() => {
+      props.widgets.forEach((widget) => {
+        if (widget.vizType === 'kpi') return
+
+        if (widget.vizType === 'table') {
+          renderTable(widget.id, widget._data?.rows ?? [])
+        } else {
+          renderChart(widget.id, widget.vizType, widget._data)
+        }
+      })
+    }, 150)
+  },
+)
+
 // ── Expose render helpers for parent use (optional) ───────────────────────────
 defineExpose({ renderChart, renderTable })
 </script>
