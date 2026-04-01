@@ -1,4 +1,10 @@
-import { IsString, IsNumber, IsArray, ValidateNested } from "class-validator";
+import {
+  IsString,
+  IsNumber,
+  IsArray,
+  ValidateNested,
+  IsOptional,
+} from "class-validator";
 import { Type } from "class-transformer";
 
 export class WidgetDto {
@@ -29,4 +35,8 @@ export class SaveDashboardDto {
   @ValidateNested({ each: true })
   @Type(() => WidgetDto)
   widgets: WidgetDto[];
+
+  @IsOptional()
+  @IsString()
+  layout?: string;
 }

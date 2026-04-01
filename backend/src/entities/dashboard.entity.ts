@@ -12,6 +12,9 @@ export class Dashboard {
   @Column({ default: "My Dashboard" })
   name: string;
 
+  @Column({ nullable: true, default: "single" })
+  layout: string;
+
   @Column({ type: "datetime", default: () => "CURRENT_TIMESTAMP" })
   createdAt: Date;
 

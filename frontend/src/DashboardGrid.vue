@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick, defineComponent, h } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick, defineComponent, h, computed } from 'vue'
 import { GridStack } from 'gridstack'
 import 'gridstack/dist/gridstack.min.css'
 import Highcharts from 'highcharts'
@@ -31,9 +31,37 @@ const props = defineProps({
   domains: { type: Array, required: true },
   datasetsByDomain: { type: Object, required: true },
   vizTypes: { type: Array, required: true },
+  layout: { type: String, default: 'single' },
 })
 
 const emit = defineEmits(['remove-widget', 'layout-changed'])
+
+// ── Layout Configuration ───────────────────────────────────────────────────────
+const layoutColumns = computed(() => {
+  // GridStack uses a 12-column grid system
+  // Define column positions based on layout type
+  const layouts = {
+    single: [{ start: 0, width: 12 }],
+    'two-equal': [
+      { start: 0, width: 6 },
+      { start: 6, width: 6 },
+    ],
+    'two-left-small': [
+      { start: 0, width: 4 },
+      { start: 4, width: 8 },
+    ],
+    'two-left-large': [
+      { start: 0, width: 8 },
+      { start: 8, width: 4 },
+    ],
+    'three-equal': [
+      { start: 0, width: 4 },
+      { start: 4, width: 4 },
+      { start: 8, width: 4 },
+    ],
+  }
+  return layouts[props.layout] || layouts.single
+})
 
 // ── Refs ───────────────────────────────────────────────────────────────────────
 const gridEl = ref(null)
@@ -41,6 +69,37 @@ let grid = null
 
 // Track AG-Grid instances to destroy on widget removal
 const agGridInstances = new Map()
+
+// ── Helper: Find which column a widget belongs to ─────────────────────────────
+function findColumnForWidget(x, w) {
+  // Find the column that the widget's center is in
+  const widgetCenter = x + w / 2
+  
+  for (const col of layoutColumns.value) {
+    const colStart = col.start
+    const colEnd = col.start + col.width
+    
+    if (widgetCenter >= colStart && widgetCenter < colEnd) {
+      return col
+    }
+  }
+  
+  // If not found, return the closest column
+  let closestCol = layoutColumns.value[0]
+  let minDistance = Math.abs(widgetCenter - (closestCol.start + closestCol.width / 2))
+  
+  for (const col of layoutColumns.value) {
+    const colCenter = col.start + col.width / 2
+    const distance = Math.abs(widgetCenter - colCenter)
+    
+    if (distance < minDistance) {
+      minDistance = distance
+      closestCol = col
+    }
+  }
+  
+  return closestCol
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const getDomain = (id) => props.domains.find((d) => d.id === id)
@@ -165,13 +224,32 @@ onMounted(async () => {
 
   // Emit layout changes so parent can persist positions
   grid.on('change', (_, items) => {
-    const layout = items.map((i) => ({
-      id: i.el?.id?.replace('gs-widget-', ''),
-      x: i.x,
-      y: i.y,
-      w: i.w,
-      h: i.h,
-    }))
+    const layout = items.map((i) => {
+      const widgetId = i.el?.id?.replace('gs-widget-', '')
+      let { x, y, w, h } = i
+      
+      // Auto-adjust width when widget is dragged to a different column
+      const targetColumn = findColumnForWidget(x, w)
+      if (targetColumn) {
+        // Snap to column start and set width to full column width
+        x = targetColumn.start
+        w = targetColumn.width
+        
+        // Update the GridStack widget immediately to reflect the new width
+        const gsWidget = grid.engine.nodes.find(node => node.el?.id === `gs-widget-${widgetId}`)
+        if (gsWidget && (gsWidget.w !== w || gsWidget.x !== x)) {
+          grid.update(i.el, { x, w })
+        }
+      }
+      
+      return {
+        id: widgetId,
+        x,
+        y,
+        w,
+        h,
+      }
+    })
     emit('layout-changed', layout)
   })
 
@@ -237,6 +315,21 @@ defineExpose({ renderChart, renderTable })
       <div class="empty-icon">🧩</div>
       <h3 class="empty-title">No widgets yet</h3>
       <p class="empty-desc">Click "Add Widget" to start building your personalized dashboard.</p>
+    </div>
+
+    <!-- Layout guides (visual only) -->
+    <div v-if="widgets.length > 0 && layoutColumns.length > 1" class="layout-guides">
+      <div
+        v-for="(col, idx) in layoutColumns"
+        :key="idx"
+        class="layout-column"
+        :style="{
+          left: `${(col.start / 12) * 100}%`,
+          width: `${(col.width / 12) * 100}%`,
+        }"
+      >
+        <div class="column-label">Column {{ idx + 1 }}</div>
+      </div>
     </div>
 
     <!-- GridStack container -->
@@ -465,5 +558,57 @@ defineExpose({ renderChart, renderTable })
 .kpi-change.down {
   background: rgba(239, 68, 68, 0.14);
   color: var(--red);
+}
+
+/* Layout guides */
+.layout-guides {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  display: flex;
+}
+
+.layout-column {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed rgba(245, 158, 11, 0.2);
+  border-right: 1px dashed rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.02);
+  transition: all 0.3s;
+}
+
+.layout-column:first-child {
+  border-left: none;
+}
+
+.layout-column:last-child {
+  border-right: none;
+}
+
+.column-label {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(245, 158, 11, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--surface);
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px dashed rgba(245, 158, 11, 0.2);
+  white-space: nowrap;
+}
+
+.grid-stack {
+  position: relative;
+  z-index: 1;
 }
 </style>

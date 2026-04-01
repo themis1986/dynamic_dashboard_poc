@@ -2,6 +2,7 @@
 import { ref, defineComponent, h, onMounted } from 'vue'
 import DashboardGrid from './DashboardGrid.vue'
 import AddWidgetWizard from './AddWidgetWizard.vue'
+import LayoutSelector from './LayoutSelector.vue'
 import * as api from './api/dashboardApi.js'
 
 // ── Simple Plus Icon ───────────────────────────────────────────────────────────
@@ -37,6 +38,8 @@ const VIZ_TYPES = [
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const wizardOpen = ref(false)
+const layoutSelectorOpen = ref(false)
+const selectedLayout = ref('single') // Default layout
 const widgets = ref([])
 const loading = ref(true)
 let widgetCounter = 0
@@ -58,6 +61,12 @@ onMounted(async () => {
 
     // Load user's dashboard
     const dashboard = await api.fetchDashboard()
+
+    // Restore layout
+    if (dashboard?.layout) {
+      selectedLayout.value = dashboard.layout
+    }
+
     if (dashboard?.widgets && Array.isArray(dashboard.widgets)) {
       // Restore widgets with their data
       for (const savedWidget of dashboard.widgets) {
@@ -71,6 +80,11 @@ onMounted(async () => {
           widgetCounter = savedWidget.id
         }
       }
+    }
+
+    // Open layout selector if no layout is set and no widgets exist
+    if (!dashboard?.layout && (!dashboard?.widgets || dashboard.widgets.length === 0)) {
+      layoutSelectorOpen.value = true
     }
   } catch (error) {
     console.error('Failed to load dashboard:', error)
@@ -98,8 +112,16 @@ async function addWidget({ domainId, datasetId, vizType }) {
   try {
     // Fetch real data from API
     const data = await api.fetchData(domainId, datasetId)
-    const { w, h } = sizeForVizType(vizType)
+    const { h } = sizeForVizType(vizType)
     const id = ++widgetCounter
+
+    // Always place new widgets in the first column
+    const layoutColumns = getLayoutColumns(selectedLayout.value)
+    const firstColumn = layoutColumns[0]
+    
+    // Set x to first column start and width to full column width
+    const x = firstColumn.start
+    const w = firstColumn.width
 
     const newWidget = {
       id,
@@ -108,7 +130,7 @@ async function addWidget({ domainId, datasetId, vizType }) {
       vizType,
       w,
       h,
-      x: 0,
+      x,
       y: widgets.value.length * 5, // simple auto-stack
       kpiData: data.kpi,
       _data: data,
@@ -122,6 +144,31 @@ async function addWidget({ domainId, datasetId, vizType }) {
     console.error('Failed to add widget:', error)
     alert('Failed to add widget. Please try again.')
   }
+}
+
+// ── Get layout columns helper ──────────────────────────────────────────────────
+function getLayoutColumns(layout) {
+  const layouts = {
+    single: [{ start: 0, width: 12 }],
+    'two-equal': [
+      { start: 0, width: 6 },
+      { start: 6, width: 6 },
+    ],
+    'two-left-small': [
+      { start: 0, width: 4 },
+      { start: 4, width: 8 },
+    ],
+    'two-left-large': [
+      { start: 0, width: 8 },
+      { start: 8, width: 4 },
+    ],
+    'three-equal': [
+      { start: 0, width: 4 },
+      { start: 4, width: 4 },
+      { start: 8, width: 4 },
+    ],
+  }
+  return layouts[layout] || layouts.single
 }
 
 // ── Remove widget ──────────────────────────────────────────────────────────────
@@ -156,10 +203,16 @@ async function saveDashboardToBackend() {
       x,
       y,
     }))
-    await api.saveDashboard(widgetsToSave)
+    await api.saveDashboard(widgetsToSave, selectedLayout.value)
   } catch (error) {
     console.error('Failed to save dashboard:', error)
   }
+}
+
+// ── Handle layout selection ────────────────────────────────────────────────────
+async function handleLayoutSelect(layoutId) {
+  selectedLayout.value = layoutId
+  await saveDashboardToBackend()
 }
 </script>
 
@@ -172,6 +225,20 @@ async function saveDashboardToBackend() {
         <span class="widget-count"
           >{{ widgets.length }} widget{{ widgets.length !== 1 ? 's' : '' }}</span
         >
+        <button class="btn btn-secondary" @click="layoutSelectorOpen = true">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+          </svg>
+          Layout
+        </button>
         <button class="btn btn-primary" @click="wizardOpen = true">
           <PlusIcon />
           Add Widget
@@ -199,6 +266,7 @@ async function saveDashboardToBackend() {
         :domains="DOMAINS"
         :datasets-by-domain="DATASETS"
         :viz-types="VIZ_TYPES"
+        :layout="selectedLayout"
         @remove-widget="removeWidget"
         @layout-changed="onLayoutChanged"
       />
@@ -211,6 +279,13 @@ async function saveDashboardToBackend() {
       :datasets-by-domain="DATASETS"
       :viz-types="VIZ_TYPES"
       @add-widget="addWidget"
+    />
+
+    <!-- ── Layout Selector ── -->
+    <LayoutSelector
+      v-model="layoutSelectorOpen"
+      :current-layout="selectedLayout"
+      @select-layout="handleLayoutSelect"
     />
   </div>
 </template>
@@ -304,6 +379,16 @@ body {
   border: none;
   transition: all 0.2s;
 }
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover {
+  background: var(--surface-3);
+  border-color: var(--border-hov);
+}
+
 .btn-primary {
   background: var(--accent);
   color: var(--bg);

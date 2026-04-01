@@ -25,6 +25,10 @@ export class DashboardsController {
     @UserId() requestUserId: string,
   ) {
     // In production, verify that requestUserId matches userId or has permission
-    return this.dashboardsService.saveDashboard(userId, saveDto.widgets);
+    return this.dashboardsService.saveDashboard(
+      userId,
+      saveDto.widgets,
+      saveDto.layout,
+    );
   }
 }

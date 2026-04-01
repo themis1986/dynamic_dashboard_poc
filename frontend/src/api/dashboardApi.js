@@ -67,14 +67,15 @@ export async function fetchDashboard(userId = USER_ID) {
 }
 
 /**
- * Save dashboard widgets
+ * Save dashboard widgets and layout
  * @param {Array} widgets - Array of widget objects
+ * @param {string} layout - Layout ID (e.g., 'single', 'two-equal', etc.)
  * @param {string} userId - User ID
  * @returns {Promise<Object>} Saved dashboard
  */
-export async function saveDashboard(widgets, userId = USER_ID) {
+export async function saveDashboard(widgets, layout = 'single', userId = USER_ID) {
   return apiRequest(`/dashboards/${userId}`, {
     method: 'POST',
-    body: JSON.stringify({ widgets }),
+    body: JSON.stringify({ widgets, layout }),
   })
 }

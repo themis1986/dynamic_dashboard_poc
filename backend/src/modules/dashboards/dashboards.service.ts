@@ -48,6 +48,7 @@ export class DashboardsService {
       id: dashboard.id,
       userId: dashboard.userId,
       name: dashboard.name,
+      layout: dashboard.layout || "single",
       widgets: dashboard.widgets.map((w) => ({
         id: w.id,
         domainId: domainMap.get(w.domainId) || w.domainId,
@@ -61,9 +62,9 @@ export class DashboardsService {
     };
   }
 
-  async saveDashboard(userId: string, widgets: any[]) {
+  async saveDashboard(userId: string, widgets: any[], layout?: string) {
     this.logger.log(
-      `Saving dashboard for user ${userId} with ${widgets.length} widgets`,
+      `Saving dashboard for user ${userId} with ${widgets.length} widgets and layout ${layout}`,
     );
     this.logger.debug(`Widget data received: ${JSON.stringify(widgets)}`);
 
@@ -77,9 +78,15 @@ export class DashboardsService {
         dashboard = this.dashboardsRepository.create({
           userId,
           name: "My Dashboard",
+          layout: layout || "single",
         });
         await this.dashboardsRepository.save(dashboard);
         this.logger.log(`Created new dashboard with ID: ${dashboard.id}`);
+      } else {
+        // Update layout if provided
+        if (layout) {
+          dashboard.layout = layout;
+        }
       }
 
       // Delete ALL existing widgets for this dashboard using a direct delete query
@@ -141,11 +148,11 @@ export class DashboardsService {
         await this.widgetsRepository.insert(newWidgets);
       }
 
-      // Update dashboard timestamp directly via query to avoid cascade issues
+      // Update dashboard timestamp and layout directly via query to avoid cascade issues
       await this.dashboardsRepository
         .createQueryBuilder()
         .update(Dashboard)
-        .set({ updatedAt: new Date() })
+        .set({ updatedAt: new Date(), ...(layout && { layout }) })
         .where("id = :id", { id: dashboard.id })
         .execute();
 
